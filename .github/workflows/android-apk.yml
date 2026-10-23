@@ -74,7 +74,11 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      - uses: android-actions/setup-android@v3
+      # v3 默认安装已下架的 tools 包会失败，v4 修复；显式安装 compileSdk 34
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
 
       - uses: actions/cache@v4
         with:
@@ -88,7 +92,11 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-      - run: npx cap add android
+      - name: Ensure Android platform
+        run: |
+          if [ ! -f android/gradlew ]; then
+            npx cap add android
+          fi
       - run: npm run android:patch
       - run: npx cap sync android
       - run: npm run android:icons
