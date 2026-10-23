@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useProjectsStore } from '@/stores/projects';
-import { testAgentConnection } from '@/api/agentServer';
 import {
   syncProjectFiles,
   countSandboxFiles,
@@ -16,8 +15,6 @@ const store = useProjectsStore();
 
 const project = computed(() => store.projects.find((p) => p.id === route.params.id));
 
-const pingMsg = ref('');
-const pingBusy = ref(false);
 const syncMsg = ref('');
 const syncBusy = ref(false);
 const fileCount = ref<number | null>(null);
@@ -27,10 +24,6 @@ const modifiedCount = ref(0);
 
 const form = reactive({
   name: '',
-  baseUrl: '',
-  agentId: 1,
-  model: '',
-  accessPassword: '',
   ftpHost: '',
   ftpPort: 21,
   ftpUser: '',
@@ -41,10 +34,6 @@ const form = reactive({
 
 if (project.value) {
   form.name = project.value.name;
-  form.baseUrl = project.value.agent.baseUrl;
-  form.agentId = project.value.agent.agentId;
-  form.model = project.value.agent.model || '';
-  form.accessPassword = project.value.agent.accessPassword || '';
   form.ftpHost = project.value.ftp.host;
   form.ftpPort = project.value.ftp.port;
   form.ftpUser = project.value.ftp.username;
@@ -85,26 +74,6 @@ async function exportAllModified() {
   }
 }
 
-async function testConnection() {
-  if (!project.value) return;
-  pingBusy.value = true;
-  pingMsg.value = '';
-  try {
-    const cfg = {
-      ...project.value.agent,
-      baseUrl: form.baseUrl.replace(/\/+$/, ''),
-      agentId: Number(form.agentId),
-      accessPassword: form.accessPassword,
-    };
-    const msg = await testAgentConnection(cfg);
-    pingMsg.value = `连接成功：${msg}`;
-  } catch (e) {
-    pingMsg.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    pingBusy.value = false;
-  }
-}
-
 async function syncToSandbox() {
   if (!project.value) return;
   syncBusy.value = true;
@@ -126,13 +95,6 @@ async function save() {
   await store.updateProject(project.value.id, {
     name: form.name,
     pathPrefix: form.pathPrefix,
-    agent: {
-      ...project.value.agent,
-      baseUrl: form.baseUrl.replace(/\/+$/, ''),
-      agentId: Number(form.agentId),
-      model: form.model,
-      accessPassword: form.accessPassword,
-    },
     ftp: {
       ...project.value.ftp,
       host: form.ftpHost,
@@ -161,16 +123,13 @@ async function remove() {
   </header>
   <main class="app-main" v-if="project">
     <div class="card">
-      <span class="card-title">Agent 配置</span>
+      <span class="card-title">项目信息</span>
       <div class="field"><label>名称</label><input v-model="form.name" /></div>
-      <div class="field"><label>Agent 站点 URL</label><input v-model="form.baseUrl" placeholder="https://x.com/agent" /></div>
-      <div class="field"><label>Agent ID</label><input v-model.number="form.agentId" type="number" /></div>
-      <div class="field"><label>默认模型</label><input v-model="form.model" placeholder="deepseek-chat" /></div>
-      <div class="field"><label>站点访问密码（可选）</label><input v-model="form.accessPassword" type="password" /></div>
-      <button class="btn btn-ghost btn-block" :disabled="pingBusy" @click="testConnection">
-        {{ pingBusy ? '测试中…' : '测试 Agent 连接' }}
-      </button>
-      <p v-if="pingMsg" class="hint-text" style="margin-top:10px">{{ pingMsg }}</p>
+      <p class="hint-text" style="margin:0">
+        AI 模型与 Agent 地址在
+        <router-link to="/settings">全局设置</router-link>
+        中配置，所有项目共用。
+      </p>
     </div>
 
     <div class="card">

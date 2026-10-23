@@ -1,5 +1,5 @@
 import { chatTurnStream, TOOL_DEFINITIONS } from '@/api/agentServer';
-import type { AgentTurnResult, ToolLogEntry, WorkProject } from '@/types';
+import type { AgentServerConfig, AgentTurnResult, ToolLogEntry, WorkProject } from '@/types';
 import {
   readProjectFile,
   writeProjectFile,
@@ -157,6 +157,7 @@ export type AgentLoopEvent =
  */
 export async function runAgentLoop(
   project: WorkProject,
+  agent: AgentServerConfig,
   userText: string,
   onEvent: (e: AgentLoopEvent) => void,
   maxRounds = 30,
@@ -164,9 +165,12 @@ export async function runAgentLoop(
   workRoot = '',
   harnessDigest: HarnessDigest = { modified_files: [], read_files: [], grep_keys: [] },
 ): Promise<AgentTurnResult> {
-  const model = project.agent.model || '';
+  const model = agent.model || '';
   if (!model) {
-    throw new Error('请先在项目里配置默认模型');
+    throw new Error('请先在「设置」中配置默认模型');
+  }
+  if (!agent.baseUrl?.trim()) {
+    throw new Error('请先在「设置」中配置 Agent 站点 URL');
   }
 
   const digestNote = harnessDigestFormat(harnessDigest);
@@ -174,7 +178,7 @@ export async function runAgentLoop(
     project.name,
     project.localRootLabel,
     workRoot,
-    project.agent.systemPrompt,
+    agent.systemPrompt,
     digestNote,
   );
 
@@ -242,13 +246,13 @@ export async function runAgentLoop(
 
     const turnOpts = {
       model,
-      max_tokens: project.agent.maxTokens ?? 8192,
-      temperature: project.agent.temperature ?? 0.7,
+      max_tokens: agent.maxTokens ?? 8192,
+      temperature: agent.temperature ?? 0.7,
       ...(forceTurn && useTools.length ? { tool_choice: 'required' as const } : {}),
     };
 
     const turn = await chatTurnStream(
-      project.agent,
+      agent,
       pruneMessages(messages),
       useTools,
       turnOpts,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useProjectsStore } from '@/stores/projects';
+import { useAgentSettingsStore } from '@/stores/agentSettings';
 import { useChatStore } from '@/stores/chat';
 import { runAgentLoop } from '@/services/agentLoop';
 import { getModifiedFiles, clearModifiedFiles, exportModifiedToPhone, listLocalEntries } from '@/services/localFs';
@@ -10,6 +11,7 @@ import { scopeLabel } from '@/services/projectScope';
 import ChatMessage from '@/components/ChatMessage.vue';
 
 const projects = useProjectsStore();
+const agentSettings = useAgentSettingsStore();
 const chat = useChatStore();
 const input = ref('');
 const busy = ref(false);
@@ -89,6 +91,10 @@ watch(
 async function send() {
   const text = input.value.trim();
   if (!text || !project.value || busy.value) return;
+  if (!agentSettings.isConfigured) {
+    chat.setError('请先在底部「设置」中配置 Agent 站点 URL');
+    return;
+  }
 
   const prior = chat.messages
     .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -106,9 +112,9 @@ async function send() {
     const slash = parseSlashCommand(text);
     if (slash) {
       const content = await runSlashCommand(
-        project.value.agent,
+        agentSettings.agentConfig,
         slash,
-        project.value.agent.model || '',
+        agentSettings.config.model || '',
         (s) => {
           statusMsg.value = s;
         },
@@ -121,6 +127,7 @@ async function send() {
 
     const result = await runAgentLoop(
       project.value,
+      agentSettings.agentConfig,
       text,
       (e) => {
         if (e.type === 'delta') {

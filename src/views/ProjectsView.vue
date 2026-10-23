@@ -26,7 +26,7 @@ async function create() {
 <template>
   <header class="app-header">
     <h1>项目</h1>
-    <div class="sub">每个项目 = 本地目录 + Agent 配置 + FTP</div>
+    <div class="sub">每个项目 = 本地目录 + FTP（AI 配置在设置页）</div>
   </header>
   <main class="app-main">
     <div class="card">
@@ -50,7 +50,7 @@ async function create() {
         <strong class="project-name" style="font-size:16px">{{ p.name }}</strong>
         <span v-if="p.id === store.activeId" class="badge">当前</span>
       </div>
-      <div class="card-meta">{{ p.localRootLabel }} · {{ p.agent.baseUrl }}</div>
+      <div class="card-meta">{{ p.localRootLabel }}</div>
     </div>
   </main>
 </template>

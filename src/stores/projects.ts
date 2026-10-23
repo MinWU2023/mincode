@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { Preferences } from '@capacitor/preferences';
-import type { WorkProject, FtpConfig, AgentServerConfig } from '@/types';
+import type { WorkProject, FtpConfig } from '@/types';
+import { useAgentSettingsStore } from './agentSettings';
 import { pickProjectFolder, syncProjectFiles } from '@/services/localFs';
 
 const STORAGE_KEY = 'abs_work_projects';
@@ -22,16 +23,6 @@ function defaultFtp(): FtpConfig {
   };
 }
 
-function defaultAgent(): AgentServerConfig {
-  return {
-    baseUrl: 'https://your-domain.com/agent',
-    agentId: 1,
-    toolsEnabled: true,
-    maxTokens: 8192,
-    temperature: 0.7,
-  };
-}
-
 export const useProjectsStore = defineStore('projects', {
   state: () => ({
     projects: [] as WorkProject[],
@@ -49,9 +40,22 @@ export const useProjectsStore = defineStore('projects', {
     async load() {
       const raw = await Preferences.get({ key: STORAGE_KEY });
       const active = await Preferences.get({ key: ACTIVE_KEY });
-      this.projects = raw.value ? (JSON.parse(raw.value) as WorkProject[]) : [];
+      let projects = raw.value ? (JSON.parse(raw.value) as WorkProject[]) : [];
+      const agentStore = useAgentSettingsStore();
+      if (!agentStore.loaded) await agentStore.load();
+      for (const p of projects) {
+        if (p.agent?.baseUrl) {
+          await agentStore.migrateFromProjectAgent(p.agent);
+        }
+      }
+      projects = projects.map((p) => {
+        const { agent: _removed, ...rest } = p;
+        return rest as WorkProject;
+      });
+      this.projects = projects;
       this.activeId = active.value || (this.projects[0]?.id ?? '');
       this.loaded = true;
+      await this.persist();
     },
 
     async persist() {
@@ -69,7 +73,6 @@ export const useProjectsStore = defineStore('projects', {
         updatedAt: now,
         localRootUri: picked.uri,
         localRootLabel: picked.label,
-        agent: defaultAgent(),
         ftp: defaultFtp(),
       };
       this.projects.unshift(project);
@@ -86,7 +89,6 @@ export const useProjectsStore = defineStore('projects', {
         ...this.projects[i],
         ...patch,
         updatedAt: new Date().toISOString(),
-        agent: { ...this.projects[i].agent, ...(patch.agent || {}) },
         ftp: { ...this.projects[i].ftp, ...(patch.ftp || {}) },
       };
       await this.persist();

@@ -37,7 +37,8 @@ export interface WorkProject {
   /** Capacitor Directory URI 或 SAF document tree URI */
   localRootUri: string;
   localRootLabel: string;
-  agent: AgentServerConfig;
+  /** @deprecated 已迁移到全局 AI 设置，仅用于旧数据兼容 */
+  agent?: AgentServerConfig;
   ftp: FtpConfig;
   /** 远程路径 ↔ 本地相对路径 映射前缀（可选） */
   pathPrefix?: string;

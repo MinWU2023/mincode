@@ -37,6 +37,19 @@ for (const file of plugins) {
   console.log(`已复制 ${file}`);
 }
 
+const manifestPath = path.join(appDir, 'src', 'main', 'AndroidManifest.xml');
+if (fs.existsSync(manifestPath)) {
+  let manifest = fs.readFileSync(manifestPath, 'utf8');
+  if (!manifest.includes('usesCleartextTraffic')) {
+    manifest = manifest.replace(
+      /<application/,
+      '<application\n        android:usesCleartextTraffic="true"',
+    );
+    fs.writeFileSync(manifestPath, manifest);
+    console.log('已开启 Android 明文 HTTP（usesCleartextTraffic）');
+  }
+}
+
 const gradlePath = path.join(appDir, 'build.gradle');
 if (fs.existsSync(gradlePath)) {
   let gradle = fs.readFileSync(gradlePath, 'utf8');

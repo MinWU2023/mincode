@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useProjectsStore } from '@/stores/projects';
+import { useAgentSettingsStore } from '@/stores/agentSettings';
 
 const projects = useProjectsStore();
+const agentSettings = useAgentSettingsStore();
 
-onMounted(() => {
-  projects.load();
+onMounted(async () => {
+  await agentSettings.load();
+  await projects.load();
 });
 </script>
 
@@ -28,6 +31,10 @@ onMounted(() => {
       <router-link to="/ftp">
         <span class="tab-icon">⇪</span>
         <span>文件</span>
+      </router-link>
+      <router-link to="/settings">
+        <span class="tab-icon">⚙</span>
+        <span>设置</span>
       </router-link>
     </nav>
   </div>
