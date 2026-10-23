@@ -9,7 +9,7 @@ import {
 } from '@/api/agentServer';
 
 const agentSettings = useAgentSettingsStore();
-const version = '1.0.2';
+const version = '1.0.6';
 
 const form = reactive({
   baseUrl: '',
@@ -65,6 +65,7 @@ async function runTest() {
   try {
     await save();
     const result = await testAgentConnection(agentSettings.agentConfig);
+    await agentSettings.refreshSession();
     testSteps.value = result.steps;
     testMsg.value = result.message;
   } catch (e) {
@@ -79,6 +80,7 @@ async function loadModels() {
   saveMsg.value = '';
   try {
     await save();
+    await agentSettings.refreshSession();
     const models = await listStoredModels(agentSettings.agentConfig);
     await agentSettings.setModels(models);
     saveMsg.value = `已加载 ${models.length} 个模型`;
@@ -94,6 +96,7 @@ async function pullModels() {
   saveMsg.value = '';
   try {
     await save();
+    await agentSettings.refreshSession();
     const result = await fetchModelsFromUpstream(agentSettings.agentConfig);
     await agentSettings.setModels(result.models);
     if (result.defaultModel && !form.model) {

@@ -87,7 +87,7 @@ a {
   max-width: 480px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 2px;
   padding: 10px 12px calc(10px + var(--safe-b));
   background: rgba(255, 253, 249, 0.92);

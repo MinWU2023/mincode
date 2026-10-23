@@ -189,6 +189,20 @@ export async function testAgentConnection(cfg: AgentServerConfig): Promise<Conne
   const count = modelsJson.data?.models?.length ?? 0;
   steps.push(`✓ 模型库：${count} 个已存模型`);
 
+  let upstreamNote = '';
+  try {
+    const upRes = await agentFetch(session, 'api/chat.php?ping=1&upstream=1');
+    const upJson = await parseJson<{ message?: string }>(upRes);
+    if (upJson.ok) {
+      upstreamNote = upJson.message || '上游可达';
+      steps.push(`✓ 上游模型：${upstreamNote}`);
+    } else {
+      steps.push(`⚠ 上游模型：${upJson.message || '不可达'}`);
+    }
+  } catch (e) {
+    steps.push(`⚠ 上游模型：${e instanceof Error ? e.message : String(e)}`);
+  }
+
   return {
     ok: true,
     message: '连接正常，可以开始对话',

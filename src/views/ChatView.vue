@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useProjectsStore } from '@/stores/projects';
 import { useAgentSettingsStore } from '@/stores/agentSettings';
 import { useChatStore } from '@/stores/chat';
@@ -10,9 +11,17 @@ import { parseSlashCommand, runSlashCommand } from '@/api/mediaRelay';
 import { scopeLabel } from '@/services/projectScope';
 import ChatMessage from '@/components/ChatMessage.vue';
 
+const router = useRouter();
 const projects = useProjectsStore();
 const agentSettings = useAgentSettingsStore();
 const chat = useChatStore();
+
+const aiStatusLine = computed(() => {
+  if (!agentSettings.isConfigured) return '';
+  const model = agentSettings.config.model?.trim();
+  const host = agentSettings.config.baseUrl.replace(/^https?:\/\//, '').split('/')[0];
+  return model ? `${model} · ${host}` : host;
+});
 const input = ref('');
 const busy = ref(false);
 const uploadBusy = ref(false);
@@ -92,7 +101,11 @@ async function send() {
   const text = input.value.trim();
   if (!text || !project.value || busy.value) return;
   if (!agentSettings.isConfigured) {
-    chat.setError('请先在底部「设置」中配置 Agent 站点 URL');
+    chat.setError('请先在「设置」中配置 Agent 站点 URL');
+    return;
+  }
+  if (!agentSettings.config.model?.trim()) {
+    chat.setError('请先在「设置」中选择默认模型');
     return;
   }
 
@@ -109,6 +122,8 @@ async function send() {
   chat.setStreaming(true);
 
   try {
+    await agentSettings.refreshSession();
+
     const slash = parseSlashCommand(text);
     if (slash) {
       const content = await runSlashCommand(
@@ -203,11 +218,18 @@ async function uploadModified() {
 <template>
   <header class="app-header">
     <h1>Agent 对话</h1>
-    <div class="sub" v-if="project">工具在本地沙盒执行 · 路径受工作区限制</div>
+    <div class="sub" v-if="project && aiStatusLine">工具在本地执行 · {{ aiStatusLine }}</div>
+    <div class="sub" v-else-if="project">工具在本地沙盒执行 · 路径受工作区限制</div>
     <div class="sub text-danger" v-else>请先创建并选择项目</div>
   </header>
 
   <main class="app-main">
+    <div v-if="!agentSettings.isConfigured" class="card card-warn">
+      <p class="hint-text" style="margin:0">尚未配置 AI。请先在设置里填写 Agent 站点、测试连接并选择模型。</p>
+      <button class="btn btn-primary btn-block" style="margin-top:12px" type="button" @click="router.push('/settings')">
+        去设置
+      </button>
+    </div>
     <div class="card" style="padding:14px">
       <label class="field-label">当前项目</label>
       <select

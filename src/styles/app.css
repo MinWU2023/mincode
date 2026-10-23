@@ -137,6 +137,11 @@ a {
   box-shadow: var(--shadow-sm);
 }
 
+.card-warn {
+  border-color: #e8c9a8;
+  background: #fff8f0;
+}
+
 .card-title {
   display: block;
   font-size: 13px;
