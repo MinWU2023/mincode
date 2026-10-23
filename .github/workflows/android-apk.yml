@@ -1,0 +1,152 @@
+name: mincode · Android APK
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'APK 类型'
+        required: true
+        default: debug
+        type: choice
+        options:
+          - debug
+          - release
+  workflow_call:
+    inputs:
+      variant:
+        required: false
+        type: string
+        default: debug
+    outputs:
+      version:
+        value: ${{ jobs.build.outputs.version }}
+      artifact_name:
+        value: ${{ jobs.build.outputs.artifact_name }}
+
+concurrency:
+  group: mincode-android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  NODE_VERSION: '20'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      variant: ${{ steps.meta.outputs.variant }}
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read app version
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ inputs.variant }}" ]; then
+            VARIANT="${{ inputs.variant }}"
+          elif [ -n "${{ github.event.inputs.variant }}" ]; then
+            VARIANT="${{ github.event.inputs.variant }}"
+          else
+            VARIANT="debug"
+          fi
+          echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=mincode-${VERSION}-${VARIANT}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap add android
+      - run: npm run android:patch
+      - run: npx cap sync android
+      - run: npm run android:icons
+
+      - name: Decode release keystore
+        if: steps.meta.outputs.variant == 'release'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::Release 需在 Secrets 配置 ANDROID_KEYSTORE_BASE64 等签名密钥"
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/release.keystore
+          cat > android/keystore.properties <<EOF
+          storeFile=../release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Inject signing config
+        if: steps.meta.outputs.variant == 'release'
+        run: node scripts/ci-inject-signing.mjs
+
+      - name: Build Debug APK
+        if: steps.meta.outputs.variant == 'debug'
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Build Release APK
+        if: steps.meta.outputs.variant == 'release'
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Upload Debug APK
+        if: steps.meta.outputs.variant == 'debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Release APK
+        if: steps.meta.outputs.variant == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "### mincode APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${{ steps.meta.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Variant: \`${{ steps.meta.outputs.variant }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: \`${{ steps.meta.outputs.artifact_name }}\`" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,63 @@
+name: mincode · GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '发布标签（如 v1.0.2）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/android-apk.yml
+    with:
+      variant: release
+    secrets: inherit
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+
+      - name: Rename APK
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          VER="${TAG#v}"
+          if [ -f app-release.apk ]; then
+            mv app-release.apk "mincode-${VER}-release.apk"
+          elif [ -f app-debug.apk ]; then
+            mv app-debug.apk "mincode-${VER}-debug.apk"
+          else
+            ls -la
+            echo "::error::未找到 APK"
+            exit 1
+          fi
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: mincode ${{ steps.tag.outputs.name }}
+          generate_release_notes: true
+          files: mincode-*.apk
+          fail_on_unmatched_files: true

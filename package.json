@@ -1,0 +1,49 @@
+{
+  "name": "mincode",
+  "version": "1.0.2",
+  "private": true,
+  "description": "mincode — 移动端 AI 编程助手，多项目本地编辑 + FTP 同步",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "prebuild": "node scripts/generate-icons.mjs",
+    "build": "vue-tsc --noEmit && vite build",
+    "android:icons": "node scripts/generate-icons.mjs",
+    "preview": "vite preview",
+    "cap:sync": "cap sync",
+    "android:patch": "node scripts/patch-android.mjs",
+    "cap:android": "cap open android",
+    "cap:add:android": "cap add android",
+    "android:debug": "npm run build && cap sync android && npm run android:icons && cd android && ./gradlew assembleDebug",
+    "android:ci": "npm run build && npx cap add android && npm run android:patch && npx cap sync android && npm run android:icons",
+    "gh:apk:trigger": "node scripts/gh-apk.mjs trigger",
+    "gh:apk:trigger:release": "node scripts/gh-apk.mjs trigger release",
+    "gh:apk:watch": "node scripts/gh-apk.mjs watch",
+    "gh:apk:download": "node scripts/gh-apk.mjs download",
+    "gh:apk:latest": "node scripts/gh-apk.mjs latest",
+    "gh:apk:runs": "node scripts/gh-apk.mjs runs",
+    "release:tag": "node scripts/release-tag.mjs",
+    "lint": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/filesystem": "^6.0.2",
+    "@capacitor/preferences": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2",
+    "@capawesome/capacitor-file-picker": "^6.1.0",
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "sharp": "^0.35.5",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.7",
+    "vue-tsc": "^2.2.0"
+  }
+}
