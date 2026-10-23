@@ -41,8 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      variant: ${{ steps.meta.outputs.variant }}
-      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      variant: ${{ steps.buildvar.outputs.variant }}
+      artifact_name: ${{ steps.buildvar.outputs.artifact_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +59,22 @@ jobs:
             VARIANT="${{ github.event.inputs.variant }}"
           else
             VARIANT="debug"
+          fi
+          echo "requested_variant=$VARIANT" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve build variant
+        id: buildvar
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          REQUESTED="${{ steps.meta.outputs.requested_variant }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          SHORT_SHA="${{ steps.meta.outputs.short_sha }}"
+          if [ "$REQUESTED" = "release" ] && [ -z "$KEYSTORE" ]; then
+            echo "::warning::未配置 ANDROID_KEYSTORE_BASE64，改打 Debug APK（可直接安装测试）"
+            VARIANT="debug"
+          else
+            VARIANT="$REQUESTED"
           fi
           echo "variant=$VARIANT" >> "$GITHUB_OUTPUT"
           echo "artifact_name=mincode-${VERSION}-${VARIANT}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
@@ -102,14 +118,10 @@ jobs:
       - run: npm run android:icons
 
       - name: Decode release keystore
-        if: steps.meta.outputs.variant == 'release'
+        if: steps.buildvar.outputs.variant == 'release'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "::error::Release 需在 Secrets 配置 ANDROID_KEYSTORE_BASE64 等签名密钥"
-            exit 1
-          fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/release.keystore
           cat > android/keystore.properties <<EOF
           storeFile=../release.keystore
@@ -119,35 +131,35 @@ jobs:
           EOF
 
       - name: Inject signing config
-        if: steps.meta.outputs.variant == 'release'
+        if: steps.buildvar.outputs.variant == 'release'
         run: node scripts/ci-inject-signing.mjs
 
       - name: Build Debug APK
-        if: steps.meta.outputs.variant == 'debug'
+        if: steps.buildvar.outputs.variant == 'debug'
         run: |
           chmod +x android/gradlew
           cd android && ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK
-        if: steps.meta.outputs.variant == 'release'
+        if: steps.buildvar.outputs.variant == 'release'
         run: |
           chmod +x android/gradlew
           cd android && ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload Debug APK
-        if: steps.meta.outputs.variant == 'debug'
+        if: steps.buildvar.outputs.variant == 'debug'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.meta.outputs.artifact_name }}
+          name: ${{ steps.buildvar.outputs.artifact_name }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload Release APK
-        if: steps.meta.outputs.variant == 'release'
+        if: steps.buildvar.outputs.variant == 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.meta.outputs.artifact_name }}
+          name: ${{ steps.buildvar.outputs.artifact_name }}
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 90
@@ -156,5 +168,5 @@ jobs:
         run: |
           echo "### mincode APK" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: \`${{ steps.meta.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Variant: \`${{ steps.meta.outputs.variant }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Artifact: \`${{ steps.meta.outputs.artifact_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Variant: \`${{ steps.buildvar.outputs.variant }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: \`${{ steps.buildvar.outputs.artifact_name }}\`" >> "$GITHUB_STEP_SUMMARY"
