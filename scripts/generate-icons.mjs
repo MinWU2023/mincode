@@ -47,18 +47,11 @@ function runCapacitorAssets() {
     console.log('跳过 Android 图标：尚未 cap add android');
     return;
   }
+  // 颜色在 capacitor.assets.json 配置；勿用 shell:true，否则 Linux 上 # 会被当成注释
   const res = spawnSync(
     'npx',
-    [
-      '@capacitor/assets',
-      'generate',
-      '--android',
-      '--iconBackgroundColor',
-      '#faf7f2',
-      '--splashBackgroundColor',
-      '#faf7f2',
-    ],
-    { cwd: root, stdio: 'inherit', shell: true },
+    ['@capacitor/assets', 'generate', '--android'],
+    { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' },
   );
   if (res.status !== 0) process.exit(res.status || 1);
   console.log('已生成 Android 启动图标与 splash');
